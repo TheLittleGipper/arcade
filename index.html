@@ -319,7 +319,9 @@ function sizeUp(){const d=devicePixelRatio||1,vw=innerWidth,vh=innerHeight,bar=$
  $('#cabs').style.gap=(28*K/d)+'px';mqBake()}
 let raf=0,last=0;
 function draw(force){const t=RM()?0:now();CABS.forEach((C,i)=>cabDraw(C,i,t));mqDraw(t);hallDraw(t)}
-function loop(ms){raf=requestAnimationFrame(loop);if(RM())return;if(ms-last<33)return;last=ms;draw()}
+let lastH=0;
+function loop(ms){raf=requestAnimationFrame(loop);if(RM())return;if(ms-last<66)return;last=ms;const t=now();CABS.forEach((C,i)=>cabDraw(C,i,t));
+ if(ms-lastH>=125){lastH=ms;mqDraw(t);hallDraw(t)}}
 function relayout(){infoFit();sizeUp();CABS.forEach((C,i)=>cabDraw(C,i,0));mqDraw(0);requestAnimationFrame(()=>{hallBake();draw(true)})}
 
 /* ---------- choosing and playing ---------- */
