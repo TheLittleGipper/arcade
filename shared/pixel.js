@@ -6,7 +6,9 @@
      Px.hash(a,b)                 a steady noise value 0..1 for a pixel
      Px.dith(x,y)                 the 4x4 ordered-dither threshold for a pixel (about -0.47 .. 0.47)
      Px.canvas(w,h)               [canvas, context], smoothing off
-     Px.show(dst, art, k)         draw art onto dst at k device pixels per art pixel (sizes dst to match)
+     Px.show(dst, art, k)         draw art onto dst at k device pixels per art pixel (sizes dst to match), replacing the
+                                  old frame in one step (never a blank canvas in between: browser-isolation services that
+                                  stream a page remotely would show that moment as a black flash)
      Px.sprite(rows, pal, ink)    a sprite from rows of palette letters ('.' is clear), outlined
      Px.outline(cv, ink, sh)      outline whatever is drawn on cv (and a hard shadow down-right if sh)
      Px.text(str, opt)            hand-built lettering as a canvas: opt.face 'std' (5x7), 'slab' (5x7 with Western slab
@@ -25,7 +27,7 @@ const rgba=(h,a)=>{const c=hex(h);return 'rgba('+c[0]+','+c[1]+','+c[2]+','+a+')
 const lum=c=>.3*c[0]+.59*c[1]+.11*c[2];
 function canvas(w,h){const c=document.createElement('canvas');c.width=Math.max(1,w|0);c.height=Math.max(1,h|0);const g=c.getContext('2d');g.imageSmoothingEnabled=false;return[c,g]}
 function show(dst,art,k){const d=window.devicePixelRatio||1,W=art.width*k,H=art.height*k;if(dst.width!==W||dst.height!==H){dst.width=W;dst.height=H}
- dst.style.width=W/d+'px';dst.style.height=H/d+'px';const g=dst.getContext('2d');g.imageSmoothingEnabled=false;g.clearRect(0,0,W,H);g.drawImage(art,0,0,W,H)}
+ dst.style.width=W/d+'px';dst.style.height=H/d+'px';const g=dst.getContext('2d');g.imageSmoothingEnabled=false;g.globalCompositeOperation='copy';g.drawImage(art,0,0,W,H);g.globalCompositeOperation='source-over'}
 // an outline one art pixel wide around everything drawn, each outline pixel a dark ink tinted by the darkest colour it borders
 function outline(cv,ink,sh){const w=cv.width,h=cv.height,g=cv.getContext('2d'),D=g.getImageData(0,0,w,h).data,I=hex(ink||'#0a0812'),A=i=>D[i*4+3]>40;
  const O=g.createImageData(w,h),E=O.data;
