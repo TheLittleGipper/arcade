@@ -72,7 +72,7 @@ function title(){const a=Px.text('LEGEND OF THE',{face:'slab',ramp:['#fff4d8','#
  const k=Math.max(1,Math.min(Math.floor((innerWidth-32)*d()/c.width),Math.round(4*d())));Px.show(document.getElementById('title'),c,k)}
 function all(){bake();title();draw()}
 all();addEventListener('resize',()=>{clearTimeout(all.t);all.t=setTimeout(all,80)});
-let last=0;(function loop(ms){requestAnimationFrame(loop);if(RM()||ms-last<40)return;last=ms;draw()})(0);
+let last=0;(function loop(ms){requestAnimationFrame(loop);if(RM()||ms-last<80)return;last=ms;draw()})(0);
 // Esc, or a controller's B, goes back to the Arcade
 addEventListener('keydown',e=>{if(e.key==='Escape')location.href='../../index.html'});
 (function pad(){try{const p=[...(navigator.getGamepads?navigator.getGamepads():[])].find(Boolean);if(p&&p.buttons[1]&&p.buttons[1].pressed)return location.href='../../index.html'}catch(e){}requestAnimationFrame(pad)})();
