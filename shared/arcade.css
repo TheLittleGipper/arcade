@@ -1,0 +1,66 @@
+/* =====================================================================================================================
+   THE ARCADE: the shared look. Fonts, the palette (dark and light) and the stone-and-pixel UI every page builds from:
+   buttons, panels, dialogs, switches, a slider and a text field. Pages add only their own art and layout.
+   Fonts: Waystone and Waystone Small are DialBound's hand-built pixel faces (fonts/); Jacquard is its gilded title face.
+   ===================================================================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Jacquard+12&family=Jacquard+24&display=swap');
+@font-face{font-family:'Waystone';src:url('fonts/waystone.ttf') format('truetype');font-display:block}
+@font-face{font-family:'Waystone Small';src:url('fonts/waystone_small.ttf') format('truetype');font-display:block}
+
+:root{--bg:#0c0a10;--ink:#e6e3da;--mute:#a9abb4;--gold:#f0c04a;--gold-d:#8a6420;--warn:#e0503a;
+ --panel:#1c1d24;--panel-hi:#30323b;--panel-lo:#0a0b0f;--edge:#050608;--field:#101116;
+ --btn-t:#15161a;--btn-a:#a1a1a0;--btn-b:#898989;--btn-c:#747579;--btn-hi:#d6d4ce;--btn-lo:#45474e;
+ --on-a:#6e8f5c;--on-b:#4f6e45;--on-c:#38523d;--on-t:#eef5e2;
+ --fs:21px;--fs-s:14px;color-scheme:dark}
+html[data-theme=light]{--bg:#d8d2c4;--ink:#1d1b20;--mute:#4f4d55;--gold:#9a6a10;--gold-d:#6a4808;
+ --panel:#c9c3b6;--panel-hi:#ece6d8;--panel-lo:#8f897d;--edge:#3a3630;--field:#ece6d8;color-scheme:light}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;color:var(--ink);font:400 var(--fs)/1.15 'Waystone',monospace;-webkit-font-smoothing:none;font-synthesis:none}
+button,input{font:inherit;color:inherit}
+canvas.px,img.px{image-rendering:pixelated;image-rendering:crisp-edges}
+.px-small{font-family:'Waystone Small','Waystone',monospace;font-size:var(--fs-s);line-height:1.25}
+.px-mute{color:var(--mute)}
+.sr-only{position:absolute!important;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* a stone button: grey granite, lit from the top left, a hard dark rim; a chosen one turns moss green */
+.px-btn{text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:4px 14px 3px;border:0;border-radius:0;cursor:pointer;
+ color:var(--btn-t);text-shadow:1px 1px 0 rgba(214,212,206,.6);background:linear-gradient(180deg,var(--btn-a),var(--btn-b) 55%,var(--btn-c));
+ box-shadow:inset 2px 2px 0 var(--btn-hi),inset -2px -2px 0 var(--btn-lo),0 0 0 2px var(--edge),2px 3px 0 2px rgba(2,3,6,.55)}
+.px-btn:hover{filter:brightness(1.08)}
+.px-btn:active{transform:translate(1px,1px);box-shadow:inset 2px 2px 0 var(--btn-lo),inset -2px -2px 0 var(--btn-hi),0 0 0 2px var(--edge)}
+.px-btn.on,.px-btn.go{color:var(--on-t);text-shadow:1px 1px 0 #0b140c;background:linear-gradient(180deg,var(--on-a),var(--on-b) 55%,var(--on-c))}
+.px-btn.go{min-height:48px;padding-left:22px;padding-right:22px}
+.px-btn:disabled{cursor:default;filter:grayscale(.6) brightness(.8);transform:none}
+.px-btn .px-k{font-family:'Waystone Small','Waystone',monospace;font-size:var(--fs-s);padding:2px 5px 1px;color:#e6e3da;background:#26282d;text-shadow:none}
+:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+
+/* a slab: a dark (or, in the light theme, pale) stone panel with a bevelled rim */
+.px-panel{position:relative;padding:14px 16px;background:var(--panel);
+ box-shadow:inset 2px 2px 0 var(--panel-hi),inset -2px -2px 0 var(--panel-lo),0 0 0 2px var(--edge),3px 4px 0 2px rgba(2,3,6,.5)}
+.px-h{margin:0 0 8px;font-size:var(--fs);font-weight:400;color:var(--gold);text-shadow:1px 1px 0 #000;letter-spacing:1px;text-transform:uppercase}
+html[data-theme=light] .px-h{text-shadow:none}
+
+/* dialogs: a dimmed hall behind a slab */
+.px-dialog{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(5,4,10,.62)}
+.px-dialog[hidden]{display:none}
+.px-dialog .px-panel{width:min(460px,100%);max-height:calc(100vh - 32px);overflow:auto}
+.px-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 14px;padding:9px 0;border-top:1px solid var(--panel-hi)}
+.px-row:first-of-type{border-top:0}
+.px-actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end;margin-top:14px}
+
+/* a segmented switch (On/Off, or three choices) */
+.px-seg{display:inline-flex;gap:6px}
+.px-seg .px-btn{min-height:36px;padding:3px 10px 2px;font-size:var(--fs-s);font-family:'Waystone Small','Waystone',monospace}
+/* a slider: a carved groove and a stone thumb */
+.px-range{-webkit-appearance:none;appearance:none;width:160px;height:24px;background:transparent;cursor:pointer}
+.px-range::-webkit-slider-runnable-track{height:8px;background:var(--field);box-shadow:inset 2px 2px 0 var(--edge),inset -1px -1px 0 var(--panel-hi)}
+.px-range::-moz-range-track{height:8px;background:var(--field);box-shadow:inset 2px 2px 0 var(--edge),inset -1px -1px 0 var(--panel-hi)}
+.px-range::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:22px;margin-top:-7px;background:linear-gradient(180deg,var(--btn-a),var(--btn-c));box-shadow:inset 2px 2px 0 var(--btn-hi),inset -2px -2px 0 var(--btn-lo),0 0 0 2px var(--edge)}
+.px-range::-moz-range-thumb{width:16px;height:22px;border:0;border-radius:0;background:linear-gradient(180deg,var(--btn-a),var(--btn-c));box-shadow:inset 2px 2px 0 var(--btn-hi),inset -2px -2px 0 var(--btn-lo),0 0 0 2px var(--edge)}
+/* a text field carved into the stone */
+.px-input{width:100%;min-height:40px;padding:6px 10px 4px;border:0;border-radius:0;background:var(--field);color:var(--ink);box-shadow:inset 2px 2px 0 var(--edge),inset -2px -2px 0 var(--panel-hi)}
+
+/* reduced motion (the shared setting, or the system's): nothing slides, fades or blinks */
+html.rm *,html.rm *::before,html.rm *::after{animation:none!important;transition:none!important}
+@media (max-width:560px){:root{--fs:19px}.px-row{grid-template-columns:minmax(0,1fr)}.px-seg{flex-wrap:wrap}}

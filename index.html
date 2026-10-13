@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>The Arcade</title>
+<link rel="stylesheet" href="shared/arcade.css">
+<script src="shared/games.js"></script>
+<script src="shared/profile.js"></script>
+<script src="shared/pixel.js"></script>
+<style>
+/* ===== THE ARCADE HUB: the hall is one pixel canvas behind everything (wall, floor, lamps, window, props), drawn to fit
+   the page; the marquee and each cabinet are their own pixel canvases in the page, so they stay real, focusable buttons.
+   Every canvas shows its art at the same whole number of device pixels per art pixel. ===== */
+html,body{min-height:100%}
+body{position:relative;overflow-x:hidden;display:flex;flex-direction:column;min-height:100vh;min-height:100dvh;background:#0c0709}
+#hall{position:absolute;left:0;top:0;z-index:0;pointer-events:none}
+.bar{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:10px 14px;flex-wrap:wrap;padding:12px 16px}
+.who{display:flex;align-items:center;gap:12px;padding:6px 8px 6px 12px}
+.who-i{display:block;width:28px;height:28px}
+.who-n{max-width:44vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--gold);text-shadow:1px 1px 0 #000}
+html[data-theme=light] .who-n{text-shadow:none}
+.who .px-btn,.bar-r .px-btn{min-height:34px;padding:3px 10px 2px;font-size:var(--fs-s);font-family:'Waystone Small','Waystone',monospace}
+.bar-r{display:flex;align-items:center;gap:12px}
+.last{color:#d8cdb8;text-shadow:1px 1px 0 #000;text-align:right}
+main{position:relative;z-index:1;flex:1;display:flex;flex-direction:column;align-items:center;padding:4px 16px 18px}
+#marquee{display:block;margin:2px auto 0}
+.cabs{display:flex;justify-content:center;align-items:flex-end;margin-top:auto}
+.cab{position:relative;display:block;padding:0;border:0;background:none;cursor:pointer;line-height:0;-webkit-tap-highlight-color:transparent}
+.cab canvas{display:block}
+.cab:focus-visible{outline:none}
+.cab:focus-visible::after{content:'';position:absolute;left:-8px;right:-8px;bottom:-10px;height:4px;background:var(--gold);box-shadow:0 0 0 2px #000}
+.cab.lit{filter:drop-shadow(0 0 14px var(--glow))}
+html.rm .cab.lit{filter:none}
+.info{width:min(660px,100%);margin-top:18px}
+.info-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin:0 0 6px}
+.info-t{font-size:calc(var(--fs) + 3px);color:var(--gold);text-shadow:1px 1px 0 #000}
+html[data-theme=light] .info-t{text-shadow:none}
+.info-b{margin:0 0 6px}
+.info-p{margin:0 0 10px;color:#9fd36a;text-shadow:1px 1px 0 #000}
+html[data-theme=light] .info-p{color:#3a6a20;text-shadow:none}
+.info-p:empty{display:none}
+.info-a{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
+.hint{color:var(--mute)}
+.toast{position:fixed;left:50%;bottom:22px;z-index:60;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;width:min(520px,calc(100% - 32px));pointer-events:none}
+.toast div{padding:10px 14px;color:#e6e3da;background:#1c1d24;text-shadow:1px 1px 0 #000;box-shadow:inset 2px 2px 0 #30323b,inset -2px -2px 0 #0a0b0f,0 0 0 2px #050608;animation:tin .18s steps(3)}
+@keyframes tin{from{transform:translateY(8px);opacity:0}}
+body.leave main,body.leave .bar{transition:opacity .35s steps(5);opacity:0}
+.soon-a{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end;margin-top:14px}
+@media (max-width:560px){.bar{padding:10px 12px}.last{display:none}.info{margin-top:14px}.info-a .hint{display:none}}
+@media (max-width:560px),(pointer:coarse){#play .px-k{display:none}}
+</style>
+</head><body>
+<canvas id="hall" class="px" aria-hidden="true"></canvas>
+<header class="bar">
+ <div class="who px-panel"><canvas class="who-i px" id="whoi" aria-hidden="true"></canvas><span class="who-n" id="pname">Player One</span><button class="px-btn" id="pedit" type="button">Edit name</button></div>
+ <div class="bar-r"><span class="last px-small" id="plast"></span><button class="px-btn" id="bset" type="button">Settings</button></div>
+</header>
+<main>
+ <h1 class="sr-only" id="aname">The Arcade</h1>
+ <canvas id="marquee" class="px" aria-hidden="true"></canvas>
+ <div class="cabs" id="cabs" role="group" aria-label="Games"></div>
+ <section class="info px-panel" id="info" aria-live="polite"></section>
+</main>
+<div class="px-dialog" id="dset" role="dialog" aria-modal="true" aria-labelledby="dset-h" hidden><div class="px-panel">
+ <h2 class="px-h" id="dset-h">Settings</h2>
+ <p class="px-small px-mute" style="margin:0 0 8px">Shared by every game in the arcade. Each game keeps its own save.</p>
+ <div id="dset-b"></div>
+ <div class="px-actions"><button class="px-btn go" type="button" data-close>Done</button></div>
+</div></div>
+<div class="px-dialog" id="dname" role="dialog" aria-modal="true" aria-labelledby="dname-h" hidden><div class="px-panel">
+ <h2 class="px-h" id="dname-h">Your name</h2>
+ <label class="px-small px-mute" for="nin">The name the arcade greets you by (up to 20 letters).</label>
+ <input class="px-input" id="nin" maxlength="20" autocomplete="nickname" style="margin-top:8px">
+ <div class="px-actions"><button class="px-btn" type="button" data-close>Cancel</button><button class="px-btn go" type="button" id="nsave">Save</button></div>
+</div></div>
+<div class="px-dialog" id="dsoon" role="dialog" aria-modal="true" aria-labelledby="dsoon-h" hidden><div class="px-panel">
+ <h2 class="px-h" id="dsoon-h">Coming soon</h2>
+ <p id="dsoon-b" style="margin:0"></p>
+ <div class="soon-a"><button class="px-btn" type="button" id="speek">Take a peek</button><button class="px-btn go" type="button" data-close>Back to the hall</button></div>
+</div></div>
+<div class="toast" id="toast" aria-live="polite"></div>
+<script>
+(()=>{'use strict';
+const A=window.Arcade,CFG=A.config,GAMES=CFG.games,$=s=>document.querySelector(s),R=document.documentElement;
+const T0=performance.now(),now=()=>(performance.now()-T0)/1000;
+let K=2,sel=0,lastPtr='mouse';
+
+/* ---------- the profile: seeded once from DialBound's own save, so the first visit never flips a choice made there ---------- */
+function seed(){if(A.profile.exists())return;let s={};try{const D=JSON.parse(localStorage.getItem('longroad_v1'));if(D&&typeof D==='object'){const t=D.set||{};
+ s={music:!!D.mus,sfx:!!D.snd,motion:['sys','on','off'].includes(t.rm)?t.rm:'sys',theme:['sys','dark','light'].includes(t.th)?t.th:'sys'}}}catch(e){}
+ A.profile.seed({settings:s})}
+seed();
+const mqM=matchMedia('(prefers-reduced-motion: reduce)'),mqT=matchMedia('(prefers-color-scheme: light)');
+const RM=()=>A.settings.motionReduced();
+function applyLook(){R.dataset.theme=A.settings.theme();R.classList.toggle('rm',RM())}
+applyLook();try{mqM.addEventListener('change',()=>{applyLook();draw(true)});mqT.addEventListener('change',applyLook)}catch(e){}
+
+/* ---------- a game's progress, read safely from its own save (only DialBound has one yet). Anything odd: nothing shown ---------- */
+const TITLES=[[1,'Wanderer'],[5,'Scout'],[10,'Pathfinder'],[15,'Warden'],[20,'Captain'],[30,'Lantern-Bearer'],[40,'Keeper of the Citadel'],[50,'Lord of the Long Road']];
+const p2=n=>String(n).padStart(2,'0'),dayK=t=>{const d=new Date(t);return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())};
+const prevWD=ds=>{const d=new Date(ds+'T12:00:00');do{d.setDate(d.getDate()-1)}while(d.getDay()===0||d.getDay()===6);return dayK(d.getTime())};
+const PROGRESS={dialbound(){const S=JSON.parse(localStorage.getItem('longroad_v1'));if(!S||typeof S!=='object'||S.cls==null)return '';
+ let xp=0;(Array.isArray(S.ev)?S.ev:[]).forEach(e=>{xp+=+e.x||0});const ad=o=>{if(o&&o.x)for(const k in o.x)xp+=+o.x[k]||0};Object.values(S.days||{}).forEach(ad);ad(S.old);xp+=S.bxp|0;
+ if(!isFinite(xp)||xp<0)return '';let L=1,n=xp;while(n>=250+50*L&&L<500){n-=250+50*L;L++}
+ const td=dayK(Date.now()),last=typeof S.last==='string'?S.last:'',sh=Array.isArray(S.tal)&&S.tal.includes('a1'),on=!!last&&(last>=prevWD(td)||(sh&&last>=prevWD(prevWD(td)))),st=on?S.streak|0:0;
+ return 'Level '+L+' '+TITLES.filter(t=>L>=t[0]).pop()[1]+' · '+(st?st+'-day streak':'no streak running')}};
+const progress=g=>{try{return PROGRESS[g.id]?PROGRESS[g.id]():''}catch(e){return ''}};
+
+/* ---------- sound: synthesised (no files), a soft hum under Music and blips under Sound effects, both at the master volume ---------- */
+const SND=(()=>{let ac=null,hum=null;const S=()=>A.profile.get().settings;
+ function ctx(){if(!ac){try{ac=new(window.AudioContext||window.webkitAudioContext)()}catch(e){return null}}if(ac.state==='suspended')ac.resume().catch(()=>{});return ac}
+ function humSet(){const s=S(),want=s.music&&s.volume>0;if(!ac)return;
+  if(want&&!hum){const n=ac.sampleRate*2,b=ac.createBuffer(1,n,ac.sampleRate),d=b.getChannelData(0);let l=0;for(let i=0;i<n;i++){l=(l+.02*(Math.random()*2-1))/1.02;d[i]=l*3.2}
+   const src=ac.createBufferSource();src.buffer=b;src.loop=true;const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=150;const g=ac.createGain();g.gain.value=0;
+   const o1=ac.createOscillator(),o2=ac.createOscillator(),g1=ac.createGain(),g2=ac.createGain();o1.frequency.value=60;o2.frequency.value=120;g1.gain.value=.18;g2.gain.value=.08;
+   const lfo=ac.createOscillator(),lg=ac.createGain();lfo.frequency.value=.13;lg.gain.value=.12;lfo.connect(lg);lg.connect(g.gain);
+   src.connect(lp);lp.connect(g);o1.connect(g1);g1.connect(g);o2.connect(g2);g2.connect(g);g.connect(ac.destination);[src,o1,o2,lfo].forEach(x=>x.start());hum={g,parts:[src,o1,o2,lfo]}}
+  if(hum){const v=want?.32*s.volume:0;hum.g.gain.setTargetAtTime(v,ac.currentTime,.6);if(!want){const h=hum;hum=null;setTimeout(()=>{try{h.parts.forEach(x=>x.stop());h.g.disconnect()}catch(e){}},2500)}}}
+ function tone(type,f0,f1,t0,dur,vol){const s=S();if(!s.sfx||!s.volume)return;const c=ctx();if(!c)return;const o=c.createOscillator(),g=c.createGain(),t=c.currentTime+t0;
+  o.type=type;o.frequency.setValueAtTime(f0,t);if(f1)o.frequency.exponentialRampToValueAtTime(f1,t+dur*.8);g.gain.setValueAtTime(vol*s.volume,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+dur+.02)}
+ return{wake(){if(ctx())humSet()},humSet,blip(){tone('square',880,1320,0,.07,.04)},coin(){tone('square',988,0,0,.08,.05);tone('square',1319,0,.08,.32,.05)},bonk(){tone('triangle',230,140,0,.18,.09)}}})();
+['pointerdown','keydown'].forEach(t=>addEventListener(t,()=>SND.wake(),{capture:true,passive:true}));
+
+/* ---------- the lettering and colour of the hall ---------- */
+const GOLD=['#fff6c8','#ffe384','#f6c650','#e0a535','#c98a24','#9a5a10'];
+// DialBound's gilded logo, made as the game makes its own: its blackletter face thresholded to hard pixels and gold-shaded
+let LOGO=null;
+function dbLogo(){if(LOGO)return LOGO;const ok=document.fonts&&document.fonts.check('12px "Jacquard 12"');
+ if(!ok)return Px.text('DIALBOUND',{face:'slab',ramp:GOLD,ink:'#1a0d02'});
+ const[c,g]=Px.canvas(90,18);g.font='12px "Jacquard 12"';g.fillStyle='#000';g.fillText('DialBound',3,13);const D=g.getImageData(0,0,90,18).data,M=(x,y)=>x>=0&&y>=0&&x<90&&y<18&&D[(y*90+x)*4+3]>110;
+ let x0=90,x1=0,y0=18,y1=0;for(let y=0;y<18;y++)for(let x=0;x<90;x++)if(M(x,y)){x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y)}
+ const[o,og]=Px.canvas(x1-x0+3,y1-y0+3),G=['#fff6c8','#ffe384','#f6c650','#e0a535','#c98a24','#e8b440','#b07018'];
+ for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){if(!M(x,y))continue;const t=(y-y0)/Math.max(1,y1-y0);og.fillStyle=!M(x,y-1)?'#fffbe0':!M(x,y+1)?'#7a4a0c':G[Math.min(6,Math.floor(t*7))];og.fillRect(x-x0+1,y-y0+1,1,1)}
+ return LOGO=Px.outline(o,'#1a0d02','#000000')}
+
+/* ---------- the cabinets: 96x168 art pixels, a little three-quarter turned (the right side shows) ---------- */
+const CW=96,CH=168,SCR={x:13,y:37,w:64,h:50};
+const PAL={
+ dialbound:{body:['#0c1320','#142037','#1c2d4c','#263c63','#33507e'],side:['#080d17','#0e1626','#152036'],trim:'#c9ad5c',trimHi:'#ffe384',panel:['#1a2232','#252f44','#333f58','#4a5874'],glow:'#7fc8ff',
+  marq:['#080c1c','#101a34','#1a2a50'],btn:['#e0503a','#f0c04a','#5ad0e0'],stick:'#e0503a',slot:'#ff9a3a'},
+ leadslinger:{body:['#2a1206','#43200d','#5e3015','#7c431f','#9c5a2a'],side:['#1c0c04','#2a1408','#3a1d0c'],trim:'#e8d0a0',trimHi:'#fff4d8',panel:['#2e1c10','#43301c','#5a4228','#7a5c38'],glow:'#ffb050',
+  marq:['#3a1606','#5a2408','#7a3410'],btn:['#e0503a','#f0c04a','#7ad070'],stick:'#2a2622',slot:'#ffcf6a'},
+ _:{body:['#18181e','#22232b','#2e2f39','#3c3e4a','#4e505e'],side:['#101015','#16161c','#1e1e26'],trim:'#a1a1a0',trimHi:'#e6e3da',panel:['#22232b','#2e2f39','#3c3e4a','#4e505e'],glow:'#c8c0ff',
+  marq:['#101018','#1a1a26','#262638'],btn:['#e0503a','#f0c04a','#5ad0e0'],stick:'#e0503a',slot:'#ff9a3a'}};
+const pal=g=>PAL[g.id]||PAL._;
+const rect=(g,x,y,w,h,c)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};
+// the cabinet body (cached, lit and unlit): marquee box, bezel, control panel, coin door, kick plate, the side panel
+const BASE={};
+function cabBase(G,lit){const k=G.id+(lit?1:0);if(BASE[k])return BASE[k];const P=pal(G),[c,g]=Px.canvas(CW,CH),B=P.body,D=P.side;
+ // the side panel, seen past the front's right edge, a little foreshortened
+ for(let y=4;y<164;y++){const s=y<30?2:y<92?1:y<112?0:1;rect(g,86,y,6-s,1,y%9===0?D[0]:D[1]);rect(g,86,y,1,1,D[2])}
+ rect(g,86,3,4,1,D[2]);rect(g,88,96,4,14,P.panel[0]);
+ // the front: top cap, body, its lit left edge and shaded right edge
+ rect(g,4,2,82,3,B[0]);rect(g,4,5,82,159,B[2]);for(let y=5;y<164;y++){rect(g,4,y,2,1,B[3]);rect(g,84,y,2,1,B[1])}
+ for(let y=6;y<164;y+=1)for(let x=6;x<84;x++)if(Px.hash(x,y)>.93)rect(g,x,y,1,1,B[(x+y)%7?1:3]);// a faint grain in the paint
+ // T-molding down both front edges, a bright line in the cabinet's trim colour
+ for(let y=5;y<164;y++){rect(g,4,y,1,1,lit?P.trimHi:P.trim);rect(g,85,y,1,1,P.trim)}
+ // the marquee box
+ rect(g,6,5,78,25,B[0]);rect(g,7,6,76,23,P.trim);rect(g,8,7,74,21,B[0]);
+ // the speaker grille
+ rect(g,10,30,70,3,B[1]);for(let x=12;x<78;x+=3)rect(g,x,31,2,1,B[0]);
+ // the bezel and the dark glass of the CRT, corners rounded
+ rect(g,9,33,72,58,'#06070c');rect(g,10,34,70,56,'#10121a');
+ [[13,37],[76,37],[13,86],[76,86]].forEach(([x,y])=>rect(g,x,y,1,1,'#10121a'));
+ // the control panel, jutting forward: a lit top that slopes toward the player, a darker front face
+ for(let y=91;y<102;y++){const o=Math.round((y-91)*.4);rect(g,4-o,y,82+o*2,1,y===91?P.panel[3]:P.panel[2])}
+ rect(g,0,102,90,8,P.panel[1]);rect(g,0,102,90,1,P.panel[3]);rect(g,0,109,90,1,P.panel[0]);
+ // the stick (a ball top on a shaft) and three buttons
+ rect(g,22,94,2,5,'#2a2a30');rect(g,20,91,6,4,P.stick);rect(g,21,91,2,1,'#ffffff');rect(g,20,99,6,2,'#14151a');
+ P.btn.forEach((col,i)=>{const x=44+i*11;rect(g,x,96,7,3,'#14151a');rect(g,x+1,95,5,3,col);rect(g,x+2,95,2,1,'#ffffff')});
+ // the lower body: a recessed front, the coin door with its two slots, a lock, a vent
+ rect(g,8,111,74,46,B[1]);rect(g,8,111,74,1,B[0]);
+ rect(g,31,118,28,30,'#4a4c56');rect(g,32,119,26,28,'#6a6c76');rect(g,32,119,26,1,'#9a9ca6');rect(g,32,146,26,1,'#2a2b31');
+ rect(g,35,121,20,6,'#2a2b31');{const t=Px.text('COIN',{face:'tiny',ramp:[lit?'#ffe08a':'#b8a070']});g.drawImage(t,45-Math.round(t.width/2),122)}
+ [37,47].forEach(x=>{rect(g,x,129,6,9,'#3a3b42');rect(g,x+1,130,4,7,lit?P.slot:Px.mix(P.slot,'#14151a',.5));rect(g,x+2,131,2,5,'#14151a');rect(g,x+2,131,1,5,lit?'#fff4d8':Px.mix(P.slot,'#14151a',.3))});// two coin entries, lit
+ [37,47].forEach(x=>{rect(g,x,140,6,4,'#14151a');rect(g,x,140,6,1,'#9a9ca6')});// the coin-return flaps
+ // the kick plate and the feet
+ rect(g,4,157,82,7,'#16171c');rect(g,4,157,82,1,'#3a3b42');rect(g,8,164,8,3,'#0a0a0e');rect(g,74,164,8,3,'#0a0a0e');
+ // the marquee's own art, backlit
+ marquee(G,g,lit);
+ return BASE[k]=Px.outline(c,'#07060a')}
+function marquee(G,g,lit){const P=pal(G),M=P.marq,x0=8,y0=7,w=74,h=21;
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){const t=y/h,v=t*2.2+Px.dith(x,y)*.8+(lit?-.5:0);rect(g,x0+x,y0+y,1,1,M[Math.max(0,Math.min(2,Math.floor(2-v)))])}
+ if(G.id==='dialbound'){for(let i=0;i<14;i++){const x=x0+2+Math.floor(Px.hash(i,7)*(w-4)),y=y0+1+Math.floor(Px.hash(i,8)*(h-3));rect(g,x,y,1,1,lit?'#dfe8ff':'#6a7aa8')}
+  const L=dbLogo();g.globalAlpha=lit?1:.82;g.drawImage(L,x0+Math.round((w-L.width)/2),y0+Math.round((h-L.height)/2));g.globalAlpha=1}
+ else if(G.id==='leadslinger'){const ramp=lit?['#fff4d8','#ffe08a','#ffb04a','#e07a2a']:['#d8c8a8','#c8a060','#a87838','#8a5a26'];
+  const a=Px.text('COMING',{face:'slab',ramp,ink:'#2a0c04'}),b=Px.text('SOON',{face:'slab',ramp,ink:'#2a0c04'});
+  g.drawImage(a,x0+Math.round((w-a.width)/2),y0+1);g.drawImage(b,x0+Math.round((w-b.width)/2),y0+11)}
+ else{const t=Px.text(G.title.slice(0,14),{face:'tiny',ramp:['#e6e3da'],ink:'#000000'});g.drawImage(t,x0+Math.round((w-t.width)/2),y0+Math.round((h-t.height)/2))}}
+
+/* ---------- the attract screens, 64x50, redrawn every frame ---------- */
+const SPR={
+ hero:[['..R..','.RRR.','.RFR.','.RRR.','RRRRR','.R.R.','.K.K.'],['..R..','.RRR.','.RFR.','.RRR.','RRRRR','..RR.','..KK.']],
+ pine:['..g..','.ggg.','.ggg.','ggggg','..t..'],
+ weed:[['..wWw..','.wW.Ww.','wW.w.Ww','w.wWw.w','wW.w.Ww','.wW.Ww.','..wWw..'],['..wwW..','.Ww.wW.','ww.Ww.w','W.w.wWw','w.Ww.ww','.wW.wW.','..Www..']],
+ cactus:['...g...','...g...','g..g...','g..g..g','ggggg.g','...gggg','...g...','...g...']};
+const SP={},WD={};const weed=f=>WD[f]||(WD[f]=Px.sprite(SPR.weed[f],{w:'#b8864a',W:'#ecc888'},'#3a1a08'));const spr=(k,f,pl)=>{const key=k+f+JSON.stringify(pl);if(SP[key])return SP[key];const R=f==null?SPR[k]:SPR[k][f],[c,g]=Px.canvas(R[0].length,R.length);
+ R.forEach((row,j)=>[...row].forEach((ch,i)=>{if(ch!=='.'&&pl[ch]){g.fillStyle=pl[ch];g.fillRect(i,j,1,1)}}));return SP[key]=c};
+function screenDB(g,t){const W=SCR.w,H=SCR.h,hz=21;
+ for(let y=0;y<hz;y++)for(let x=0;x<W;x++){const v=y/hz*2.6+Px.dith(x,y)*.9;rect(g,x,y,1,1,['#070b1c','#0d1530','#172645','#21385a'][Math.max(0,Math.min(3,Math.floor(v)))])}
+ for(let i=0;i<22;i++){const x=Math.floor(Px.hash(i,3)*W),y=Math.floor(Px.hash(i,4)*(hz-4));if(Math.sin(t*2+i*1.7)>-.3)rect(g,x,y,1,1,Px.hash(i,5)>.7?'#ffffff':'#9aa8d8')}
+ const mx=48,my=7;for(let y=-5;y<=5;y++)for(let x=-5;x<=5;x++){const d=Math.hypot(x,y);if(d<=4.6)rect(g,mx+x,my+y,1,1,(x+3)*(x+3)+(y-1)*(y-1)<3?'#c8c2b0':d>3.8?'#d8d2c0':'#eee8d6');else if(d<5.6&&Px.dith(mx+x,my+y)>.1)rect(g,mx+x,my+y,1,1,'#2a3a5a')}
+ for(let x=0;x<W;x++){const h=Math.round(3+2*Math.sin(x*.21)+1.5*Math.sin(x*.53+1));rect(g,x,hz-h,1,h,'#122a24')}
+ for(let x=0;x<W;x+=3){const h=1+Math.round(Px.hash(x,9)*2);rect(g,x,hz-1-h-2,1,h+2,'#0b1d18')}
+ for(let y=hz;y<H;y++){const t2=(y-hz)/(H-hz);for(let x=0;x<W;x++)rect(g,x,y,1,1,t2*2+Px.dith(x,y)>.9?'#16302a':'#0e211c')}
+ const vx=W/2;for(let y=hz;y<H;y++){const d=y-hz+1,hw=Math.max(1,d*1.05);rect(g,Math.round(vx-hw),y,Math.round(hw*2),1,d>14?'#4a4458':'#3e3a4c');rect(g,Math.round(vx-hw),y,1,1,'#26222e');rect(g,Math.round(vx+hw)-1,y,1,1,'#26222e');
+  const z=30/d;if(((z*1.4-t*2.2)%2+2)%2<1)rect(g,Math.round(vx)-(d>16?1:0),y,d>16?2:1,1,'#c8c0a0')}
+ // pines coming down either side of the road
+ for(let i=0;i<6;i++){const ph=((t*.25+i/6)%1),d=2+ph*26,y=hz+Math.round(d),side=i%2?1:-1,x=Math.round(vx+side*(d*1.05+3+ph*6));if(y<H-2&&ph>.08){const P=spr('pine',null,{g:ph>.6?'#1e4a34':'#173a2c',t:'#3a2a1a'});g.drawImage(P,x-2,y-5)}}
+ const f=Math.floor(t*4)%2,hero=spr('hero',f,{R:'#b8402c',F:'#e8c09a',K:'#1a1014'});g.drawImage(hero,vx-2,H-15);
+ if(Math.floor(t*1.6)%2===0){const s=Px.text('PRESS START',{face:'tiny',ramp:['#ffe384','#f6c650','#c98a24'],ink:'#000000'});g.drawImage(s,Math.round((W-s.width)/2),H-7)}}
+function screenLS(g,t){const W=SCR.w,H=SCR.h,hz=30,SK=['#241034','#401840','#6a2246','#9a2e44','#cc4a3a','#ee7434'];
+ for(let y=0;y<hz;y++)for(let x=0;x<W;x++){const v=y/hz*5.4+Px.dith(x,y)*.9;rect(g,x,y,1,1,SK[Math.max(0,Math.min(5,Math.floor(v)))])}
+ const sx=34,sy=hz-5,sr=10.6;for(let y=-11;y<=5;y++){if(y===2||y===4)continue;for(let x=-11;x<=11;x++){const d=Math.hypot(x,y);if(d>sr)continue;rect(g,sx+x,sy+y,1,1,y<-7?'#fffbe0':y<-3?'#fff0a8':y<1?'#ffd870':'#ffb850')}}// a low sun, two bands cut through its foot
+ const mesa=(x0,w,h,c)=>{for(let x=0;x<w;x++){const e=Math.min(x,w-1-x),hh=e<2?h-2+e:h;rect(g,x0+x,hz-hh,1,hh,c)}};mesa(2,20,7,'#5a1e32');mesa(46,16,5,'#4a1828');mesa(16,12,4,'#3a1424');
+ for(let y=hz;y<H;y++){const t2=(y-hz)/(H-hz);for(let x=0;x<W;x++)rect(g,x,y,1,1,['#7a3a1e','#9a5026','#b8682e','#c8783a'][Math.max(0,Math.min(3,Math.floor(t2*3.4+Px.dith(x,y)*.9)))])}
+ for(let i=0;i<9;i++){const x=Math.floor(Px.hash(i,21)*W),y=hz+3+Math.floor(Px.hash(i,22)*(H-hz-5));rect(g,x,y,2,1,'#6a3418')}
+ const C=spr('cactus',null,{g:'#2a4a2a'});g.drawImage(C,4,hz+4);g.drawImage(C,52,hz+1);
+ // the tumbleweed: rolling slowly along, turning, hopping a little over the ruts
+ const sp=7,X=((t*sp)%(W+16))-10,hop=Math.abs(Math.sin(t*2.2))*3,fr=Math.floor(t*3)%2,wd=weed(fr);
+ rect(g,Math.round(X)+1,H-6,6,1,'#6a3418');g.drawImage(wd,Math.round(X),Math.round(H-13-hop));
+ const a=Px.text('LEGEND OF THE',{face:'tiny',ramp:['#fff4d8','#e8d0a0'],ink:'#2a0c04'}),b=Px.text('LEADSLINGER',{face:'tiny',ramp:['#ffe08a','#f0a040'],ink:'#2a0c04'});
+ g.drawImage(a,Math.round((W-a.width)/2),2);g.drawImage(b,Math.round((W-b.width)/2),9)}
+function screenGen(g,t,G){rect(g,0,0,SCR.w,SCR.h,'#0e0e18');const s=Px.text(G.title.slice(0,15),{face:'tiny',ramp:['#e6e3da'],ink:'#000'});g.drawImage(s,Math.round((SCR.w-s.width)/2),20)}
+const SCREENS={dialbound:screenDB,leadslinger:screenLS};
+// the glass: scanlines, darker corners, a glint when the cabinet is lit
+function crt(g,lit){const W=SCR.w,H=SCR.h;g.fillStyle='rgba(0,0,0,.2)';for(let y=1;y<H;y+=2)g.fillRect(0,y,W,1);
+ g.fillStyle='rgba(0,0,0,.45)';[[0,0],[W-1,0],[0,H-1],[W-1,H-1]].forEach(([x,y])=>g.fillRect(x,y,1,1));g.fillStyle='rgba(0,0,0,.25)';[[1,0],[0,1],[W-2,0],[W-1,1],[0,H-2],[1,H-1],[W-1,H-2],[W-2,H-1]].forEach(([x,y])=>g.fillRect(x,y,1,1));
+ if(lit){g.fillStyle='rgba(255,255,255,.10)';for(let i=0;i<10;i++)g.fillRect(3+i,2+i*0,1,1);for(let i=0;i<7;i++)g.fillRect(2,3+i,1,1)}else{g.fillStyle='rgba(6,8,14,.34)';g.fillRect(0,0,W,H)}}
+const CABS=GAMES.map((G,i)=>{const b=document.createElement('button');b.type='button';b.className='cab';b.dataset.i=i;
+ b.setAttribute('aria-label',G.title+(G.status==='ready'?'. Play.':'. Coming soon.'));b.style.setProperty('--glow',Px.rgba(pal(G).glow,.55));
+ const cv=document.createElement('canvas');cv.className='px';b.appendChild(cv);$('#cabs').appendChild(b);
+ const[art,ag]=Px.canvas(CW,CH),[sc,sg]=Px.canvas(SCR.w,SCR.h);return{G,b,cv,art,ag,sc,sg}});
+
+/* ---------- the arcade's own marquee: its name in hand-built letters, neon-warm, ringed with chasing bulbs ---------- */
+const MQ={cv:$('#marquee'),art:null,txt:null,sc:2};
+function mqBake(){const name=CFG.name,maxW=Math.floor(innerWidth*(devicePixelRatio||1)/K)-8;MQ.sc=Px.measure(name,{scale:2})+30<=maxW?2:1;
+ MQ.txt=Px.text(name,{scale:MQ.sc,ramp:['#fffbe8','#ffe8a8','#ffd070','#ffb04a','#ff8a2a'],ink:'#3a1406'});const w=MQ.txt.width+22,h=MQ.txt.height+16;[MQ.art,MQ.g]=Px.canvas(w,h)}
+function mqDraw(t){const g=MQ.g,w=MQ.art.width,h=MQ.art.height,rm=RM();g.clearRect(0,0,w,h);
+ rect(g,0,0,w,h,'#7a5420');rect(g,1,1,w-2,h-2,'#c9a050');rect(g,2,2,w-4,h-4,'#5a3a16');rect(g,3,3,w-6,h-6,'#1e0e0a');
+ for(let y=4;y<h-4;y++)for(let x=4;x<w-4;x++)if(Px.dith(x,y)+((y-4)/(h-8))*.6>.62)rect(g,x,y,1,1,'#2a1410');
+ // the letters' warm glow on the board, then the letters
+ const tx=Math.round((w-MQ.txt.width)/2),ty=Math.round((h-MQ.txt.height)/2),fl=!rm&&Math.sin(t*23)>.97;
+ g.globalAlpha=fl?.18:.34;g.drawImage(MQ.txt,tx-1,ty);g.drawImage(MQ.txt,tx+1,ty);g.drawImage(MQ.txt,tx,ty-1);g.drawImage(MQ.txt,tx,ty+1);g.globalAlpha=fl?.7:1;g.drawImage(MQ.txt,tx,ty);g.globalAlpha=1;
+ // bulbs every 4 pixels around the rim, a slow chase lighting every third
+ const ph=rm?0:Math.floor(t*5);let n=0;const bulb=(x,y)=>{const on=(n+ph)%3===0;n++;rect(g,x,y,2,2,on?'#fff6d0':'#8a6a30');if(on)rect(g,x,y,1,1,'#ffffff')};
+ for(let x=4;x<w-5;x+=4)bulb(x,1);for(let y=5;y<h-5;y+=4)bulb(w-3,y);for(let x=w-6;x>3;x-=4)bulb(x,h-3);for(let y=h-6;y>4;y-=4)bulb(1,y);
+ Px.show(MQ.cv,MQ.art,K)}
+
+/* ---------- the hall: a cosy old arcade at night. Laid out from where the cabinets and the marquee sit on the page ---------- */
+const H={cv:$('#hall'),base:null,frame:null,L:null,cones:[],glows:[]};
+function layout(){const d=devicePixelRatio||1,doc=Math.max(document.documentElement.scrollHeight,innerHeight),AW=Math.ceil(innerWidth*d/K),AH=Math.ceil(doc*d/K),q=v=>Math.round(v*d/K);
+ const cr=CABS.map(c=>{const r=c.b.getBoundingClientRect();return{x:q(r.left+scrollX),y:q(r.top+scrollY),w:q(r.width),h:q(r.height)}}),m=MQ.cv.getBoundingClientRect();
+ const cb=Math.max(...cr.map(r=>r.y+r.h));return{AW,AH,cr,mq:{x:q(m.left+scrollX),y:q(m.top+scrollY),w:q(m.width),h:q(m.height)},seam:Math.round(cb-CH*.27),floor:cb,L:Math.min(...cr.map(r=>r.x)),Rt:Math.max(...cr.map(r=>r.x+r.w))}}
+function hallBake(){const L=H.L=layout(),{AW,AH,seam}=L,[c,g]=Px.canvas(AW,AH),img=g.createImageData(AW,AH),D=img.data;
+ const put=(x,y,col)=>{const p=(y*AW+x)*4,C=Px.hex(col);D[p]=C[0];D[p+1]=C[1];D[p+2]=C[2];D[p+3]=255};
+ const rail=seam-46,wain=seam-40;
+ for(let y=0;y<AH;y++)for(let x=0;x<AW;x++){let col;
+  if(y<seam){// the wall: a damask-trellis paper in deep wine, a picture rail, then wood wainscoting
+   if(y<5)col=y===4?'#4a2c18':'#1a0d08';else if(y>=rail&&y<rail+2)col=y===rail?'#6a4428':'#3a2214';
+   else if(y<wain){const a=(x+y)%12,b=((x-y)%12+12)%12,dot=x%12===6&&y%12===0;col=dot?'#6a4426':a===0||b===0?'#3a1620':'#2a1018';if(y<16&&Px.dith(x,y)+(16-y)/16*.9>.6)col='#1a0a0e'}
+   else if(y>=seam-3)col=y===seam-3?'#3a2414':'#160a06';
+   else{const pw=26,px=((x%pw)+pw)%pw,py=y-wain;col=py<3?(py===0?'#6a4428':'#4a2c18'):(px===0||py===4||py===33)?'#1e1008':(px===1||py===5)?'#5a3820':'#3a2214';if(col==='#3a2214'&&Px.hash(x>>1,y)>.92)col='#341e12'}}
+  else{// the floor: honey planks, narrower toward the wall, staggered seams, darker toward the room's edges
+   const fy=y-seam;let row=0,acc=0,hh=3;while(acc+hh<=fy){acc+=hh;row++;hh=3+Math.floor(row*.7)}const iy=fy-acc,off=Math.floor(Px.hash(row,5)*40);
+   col=iy===0?'#2a1608':((x+off)%46===0?'#2a1608':(Px.hash(Math.floor((x+off)/46),row)>.5?'#5e3c22':'#6a4426'));
+   if(col!=='#2a1608'&&Px.hash(x,y)>.9)col=col==='#5e3c22'?'#553620':'#5e3c22';
+   const ed=Math.min(x,AW-1-x)/Math.max(40,AW*.22),dn=(y-seam)/Math.max(1,AH-seam);if(Px.dith(x,y)+ed*1.2-dn*.5<.08)col=Px.mix(col,'#120a06',.55)}
+  put(x,y,col)}
+ g.putImageData(img,0,0);
+ // the rug the cabinets stand on: wine red, a gilt border, teal diamonds, a fringe at the front
+ {const x0=L.L-14,x1=L.Rt+14,y0=seam+3,y1=Math.min(AH-2,L.floor+10);for(let y=y0;y<=y1;y++){const s=Math.round((y-y0)*.35),a=x0-s,b=x1+s;
+   for(let x=a;x<=b;x++){const e=Math.min(x-a,b-x,y-y0,y1-y);let col=e<1?'#2a0c0c':e<3?'#c9a050':e<4?'#5a1414':((x+y)%10===0||((x-y)%10+10)%10===0)?'#2a5a5a':'#6a1a1a';g.fillStyle=col;g.fillRect(x,y,1,1)}
+   if(y===y1)for(let x=a;x<=b;x+=2){g.fillStyle='#c9a878';g.fillRect(x,y+1,1,2)}}}
+ // shadows where the cabinets stand
+ L.cr.forEach(r=>{g.fillStyle='rgba(8,4,2,.55)';for(let i=0;i<4;i++)g.fillRect(r.x+4+i*2,r.y+r.h-2+i,r.w-8-i*4,1)});
+ // the marquee hangs from two chains
+ [L.mq.x+6,L.mq.x+L.mq.w-7].forEach(x=>{for(let y=5;y<L.mq.y;y++){g.fillStyle=y%3?'#8a6a30':'#3a2a12';g.fillRect(x,y,1,1)}});
+ // a window on the left wall, if there is room: the night outside, a moon, stars, curtains
+ const free=L.L-6;if(free>=58){const ww=Math.min(44,free-22),x0=Math.round(free/2-ww/2)+2,y0=Math.max(18,rail-60),wh=Math.min(54,rail-8-y0);
+  if(wh>24){g.fillStyle='#3a2214';g.fillRect(x0-3,y0-3,ww+6,wh+6);for(let y=0;y<wh;y++)for(let x=0;x<ww;x++){g.fillStyle=['#0a1028','#121c3a','#1c2a4a'][Math.min(2,Math.floor(y/wh*2.4+Px.dith(x,y)*.8))];g.fillRect(x0+x,y0+y,1,1)}
+   for(let i=0;i<14;i++){g.fillStyle=Px.hash(i,40)>.6?'#ffffff':'#a8b4d8';g.fillRect(x0+Math.floor(Px.hash(i,41)*ww),y0+Math.floor(Px.hash(i,42)*wh*.7),1,1)}
+   const mx=x0+ww-11,my=y0+9;for(let y=-4;y<=4;y++)for(let x=-4;x<=4;x++){const d=Math.hypot(x,y);if(d<=4&&Math.hypot(x+2,y-1)>3.2){g.fillStyle='#eee8d0';g.fillRect(mx+x,my+y,1,1)}}
+   g.fillStyle='#5a3820';g.fillRect(x0+Math.floor(ww/2),y0,2,wh);g.fillRect(x0,y0+Math.floor(wh/2),ww,2);g.fillStyle='#6a4428';g.fillRect(x0-4,y0+wh+3,ww+8,3);
+   [x0-6,x0+ww-1].forEach((cx,i)=>{for(let y=y0-4;y<y0+wh+4;y++)for(let x=0;x<7;x++){const fold=(x+(i?1:0))%3===0;g.fillStyle=fold?'#4a1018':'#6a1a24';if(x===0&&!i||x===6&&i)g.fillStyle='#2a080c';g.fillRect(cx+x,y,1,1)}})}}
+ // a fern in a clay pot at the far left, a change machine at the far right, a high-score board on the right wall
+ if(L.L>=28){const px=Math.max(8,Math.round(L.L*.25)),py=seam+6;g.fillStyle='#8a3a1c';for(let y=0;y<8;y++)g.fillRect(px-4+Math.floor(y/4),py-8+y,9-Math.floor(y/4)*2,1);g.fillStyle='#b05a2a';g.fillRect(px-4,py-8,9,1);
+  for(let i=0;i<14;i++){const a=-Math.PI/2+(i/13-.5)*2.6,l=7+Px.hash(i,60)*6;for(let s=0;s<l;s++){const x=Math.round(px+Math.cos(a)*s),y=Math.round(py-9+Math.sin(a)*s+s*s*.04);g.fillStyle=s>l-3?'#5a9a4a':'#2e6a32';g.fillRect(x,y,1,1)}}}
+ const fr=AW-L.Rt;if(fr>=34){const mx=L.Rt+Math.round(fr*.55)-9,my=seam+4;g.fillStyle='#07060a';g.fillRect(mx-1,my-47,20,48);g.fillStyle='#5a5c66';g.fillRect(mx,my-46,18,46);g.fillStyle='#7a7c86';g.fillRect(mx,my-46,18,1);g.fillRect(mx,my-46,1,46);
+  g.fillStyle='#14151a';g.fillRect(mx+2,my-42,14,8);const t=Px.text('CHANGE',{face:'tiny',ramp:['#9fd36a']});g.drawImage(t,mx+9-Math.round(t.width/2),my-40);
+  g.fillStyle='#14151a';g.fillRect(mx+7,my-28,4,6);g.fillStyle='#c9a050';g.fillRect(mx+8,my-27,2,1);g.fillStyle='#2a2b31';g.fillRect(mx+4,my-12,10,5);g.fillStyle='#8a8c96';g.fillRect(mx+5,my-11,8,1)}
+ if(fr>=60&&rail>70){const bw=Math.min(46,fr-16),bx=L.Rt+Math.round((fr-bw)/2),by=Math.max(22,rail-58),bh=36;g.fillStyle='#6a4428';g.fillRect(bx-2,by-2,bw+4,bh+4);g.fillStyle='#16241c';g.fillRect(bx,by,bw,bh);
+  const t=Px.text('HIGH SCORES',{face:'tiny',ramp:['#e6e3da']});if(t.width<=bw-2)g.drawImage(t,bx+Math.round((bw-t.width)/2),by+3);
+  ['ACE 9900','RJS 8150','KAT 7720','BOB 5040'].forEach((s,i)=>{const r=Px.text(s,{face:'tiny',ramp:[i?'#a8c8a0':'#f0c04a']});if(r.width<=bw-2)g.drawImage(r,bx+Math.round((bw-r.width)/2),by+11+i*6)})}
+ // the room's dark corners
+ for(let y=0;y<AH;y++)for(let x=0;x<AW;x++){const e=Math.min(x,AW-1-x)/AW,f=y<seam?0:(y-seam)/Math.max(1,AH-seam);if(e*5.5-f*.6+Px.dith(x,y)*.5<.12){g.fillStyle='rgba(6,3,2,.45)';g.fillRect(x,y,1,1)}}
+ H.base=c;[H.frame,H.fg]=Px.canvas(AW,AH);
+ // the lamps' warm cones and the screens' glow on the floor: dithered light, baked once, faded and flickered per frame
+ H.lamps=L.cr.map(r=>({x:r.x+Math.round(r.w/2),y:Math.max(10,Math.min(r.y-14,L.mq.y+L.mq.h+Math.round((r.y-L.mq.y-L.mq.h)*.35)))}));
+ H.cones=H.lamps.map(l=>{const h=Math.max(10,L.floor-l.y),w=Math.round(h*.9),[cc,cg]=Px.canvas(w*2+1,h);for(let y=0;y<h;y++){const hw=3+y*.9*(w/h);for(let x=-hw;x<=hw;x++){const f=1-Math.abs(x)/hw*.85-y/h*.4;if(f+Px.dith(x+w,y)*.9>.75){cg.fillStyle='#ffcf80';cg.fillRect(Math.round(x+w),y,1,1)}}}return{cc,x:l.x-w,y:l.y+4}});
+ H.glows=L.cr.map((r,i)=>{const w=Math.round(r.w*.75),h=10,[gc,gg]=Px.canvas(w*2,h*2),col=pal(GAMES[i]).glow;for(let y=-h;y<h;y++)for(let x=-w;x<w;x++){const d=Math.hypot(x/w,y/h);if(d<1&&1-d+Px.dith(x,y)*.6>.55){gg.fillStyle=col;gg.fillRect(x+w,y+h,1,1)}}return{gc,x:r.x+Math.round(r.w/2)-w,y:r.y+r.h-h+2}})}
+function hallDraw(t){if(!H.base)return;const g=H.fg,rm=RM();g.clearRect(0,0,H.frame.width,H.frame.height);g.drawImage(H.base,0,0);
+ g.globalCompositeOperation='lighter';H.cones.forEach((c,i)=>{const fl=rm?0:(Math.sin(t*13+i*5)>.94?.05:0)+Math.sin(t*1.3+i)*.015;g.globalAlpha=.11+fl;g.drawImage(c.cc,c.x,c.y)});
+ H.glows.forEach((o,i)=>{g.globalAlpha=i===sel?.42:.14;g.drawImage(o.gc,o.x,o.y)});g.globalAlpha=1;g.globalCompositeOperation='source-over';
+ // the lamps themselves: a cord, a brass shade, the bulb beneath
+ H.lamps.forEach((l,i)=>{g.fillStyle='#1a1008';g.fillRect(l.x,0,1,l.y-3);g.fillStyle='#07060a';g.fillRect(l.x-7,l.y-4,15,7);g.fillStyle='#8a6420';g.fillRect(l.x-6,l.y-3,13,5);g.fillStyle='#c9a050';g.fillRect(l.x-3,l.y-4,7,2);g.fillStyle='#e8c870';g.fillRect(l.x-6,l.y-3,3,1);
+  g.fillStyle=rm||Math.sin(t*13+i*5)<=.94?'#fff4c8':'#ffd890';g.fillRect(l.x-2,l.y+2,5,2);g.fillStyle='#ffffff';g.fillRect(l.x-1,l.y+2,2,1)});
+ // motes drifting in the lamplight
+ if(!rm)H.lamps.forEach((l,i)=>{for(let k=0;k<5;k++){const p=(t*.06+k*.2+i*.1)%1,x=l.x+Math.round(Math.sin(t*.7+k*2.1+i)*(4+p*18)),y=l.y+6+Math.round(p*(H.L.floor-l.y-10));g.fillStyle='rgba(255,236,190,.55)';g.fillRect(x,y,1,1)}});
+ Px.show(H.cv,H.frame,K)}
+
+/* ---------- drawing everything at one pixel size, and the loop (still when motion is reduced) ---------- */
+function cabDraw(C,i,t){const lit=i===sel,g=C.ag;g.clearRect(0,0,CW,CH);g.drawImage(cabBase(C.G,lit),0,0);
+ (SCREENS[C.G.id]||((g2,tt)=>screenGen(g2,tt,C.G)))(C.sg,t,C.G);crt(C.sg,lit);g.drawImage(C.sc,SCR.x,SCR.y);
+ if(lit&&!RM()){g.globalCompositeOperation='lighter';g.globalAlpha=.12+.04*Math.sin(t*3);g.drawImage(C.sc,SCR.x,SCR.y);g.globalAlpha=1;g.globalCompositeOperation='source-over'}
+ C.b.classList.toggle('lit',lit);Px.show(C.cv,C.art,K)}
+function sizeUp(){const d=devicePixelRatio||1,vw=innerWidth,vh=innerHeight,bar=$('.bar').offsetHeight,info=Math.max(140,$('#info').offsetHeight),
+ byW=Math.floor((vw-32)*d/(CW*2+28)),byH=Math.floor((vh-bar-info-70)*d/(CH+46));K=Math.max(1,Math.min(byW,byH,Math.floor(6*d)));
+ // each cabinet's gap, a whole number of art pixels too
+ $('#cabs').style.gap=(28*K/d)+'px';mqBake()}
+let raf=0,last=0;
+function draw(force){const t=RM()?0:now();CABS.forEach((C,i)=>cabDraw(C,i,t));mqDraw(t);hallDraw(t)}
+function loop(ms){raf=requestAnimationFrame(loop);if(RM())return;if(ms-last<33)return;last=ms;draw()}
+function relayout(){infoFit();sizeUp();CABS.forEach((C,i)=>cabDraw(C,i,0));mqDraw(0);requestAnimationFrame(()=>{hallBake();draw(true)})}
+
+/* ---------- choosing and playing ---------- */
+const info=$('#info');
+function infoHTML(i){const G=GAMES[i],pr=G.status==='ready'?progress(G):'';
+ return '<div class="info-h"><span class="info-t">'+esc(G.title)+'</span><span class="px-small px-mute">'+esc(G.sub||'')+'</span></div><p class="info-b">'+esc(G.blurb||'')+'</p><p class="info-p">'+esc(pr)+'</p>'
+  +'<div class="info-a">'+(G.status==='ready'?'<button class="px-btn go" type="button" id="play">Play '+esc(G.title)+' <span class="px-k">Enter</span></button>':'<button class="px-btn" type="button" id="play">Coming soon</button>')
+  +'<span class="hint px-small">Left and Right to choose a cabinet</span></div>'}
+function showInfo(){info.innerHTML=infoHTML(sel);$('#play').onclick=()=>play(sel)}
+// the panel keeps the height of its longest game, so choosing another never moves the cabinets off their rug
+function infoFit(){info.style.minHeight='';let m=0;GAMES.forEach((G,i)=>{info.innerHTML=infoHTML(i);m=Math.max(m,info.offsetHeight)});info.style.minHeight=m+'px';showInfo()}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+function choose(i,sound){i=(i+GAMES.length)%GAMES.length;if(i===sel&&info.innerHTML)return;sel=i;showInfo();if(sound)SND.blip();if(RM())draw(true)}
+function play(i){const G=GAMES[i];if(G.status!=='ready'){SND.bonk();soonOpen(G);return}
+ try{A.played(G.id)}catch(e){}SND.coin();document.body.classList.add('leave');setTimeout(()=>{location.href=G.path},RM()?60:380)}
+CABS.forEach((C,i)=>{C.b.addEventListener('pointerdown',e=>{lastPtr=e.pointerType||'mouse'});C.b.addEventListener('pointerenter',e=>{if(e.pointerType==='mouse')choose(i,true)});C.b.addEventListener('focus',()=>choose(i,false));
+ C.b.addEventListener('click',()=>{if(lastPtr==='touch'&&sel!==i){choose(i,true);lastPtr='mouse';return}lastPtr='mouse';choose(i,false);play(i)})});
+function toast(m){const d=document.createElement('div');d.textContent=m;$('#toast').appendChild(d);setTimeout(()=>d.remove(),3200)}
+
+/* ---------- dialogs: settings, the name, coming soon ---------- */
+let openD=null,backTo=null;
+function dOpen(id,focus){dClose();openD=$(id);backTo=document.activeElement;openD.hidden=false;setTimeout(()=>{try{(focus?$(focus):openD.querySelector('button,input')).focus()}catch(e){}},0)}
+function dClose(){if(!openD)return;openD.hidden=true;openD=null;try{backTo&&backTo.focus()}catch(e){}}
+document.querySelectorAll('.px-dialog').forEach(d=>{d.addEventListener('click',e=>{if(e.target===d||e.target.closest('[data-close]'))dClose()})});
+// Tab stays inside an open dialog
+addEventListener('keydown',e=>{if(!openD||e.key!=='Tab')return;const F=[...openD.querySelectorAll('button,input')].filter(x=>!x.disabled&&x.offsetParent);if(!F.length)return;const a=F[0],b=F[F.length-1];
+ if(e.shiftKey&&document.activeElement===a){e.preventDefault();b.focus()}else if(!e.shiftKey&&document.activeElement===b){e.preventDefault();a.focus()}});
+const SETS=[['music','Music','Soft arcade hum here, the score in each game',[[true,'On'],[false,'Off']]],['sfx','Sound effects','Blips and coins here, deed sounds in each game',[[true,'On'],[false,'Off']]],
+ ['volume','Master volume','',null],['motion','Reduced motion','No flicker, chasing bulbs or moving screens',[['sys','Match system'],['on','On'],['off','Off']]],['theme','Theme','Panels and dialogs',[['sys','Match system'],['dark','Dark'],['light','Light']]]];
+function setView(){const s=A.profile.get().settings;$('#dset-b').innerHTML=SETS.map(([k,n,d,o])=>'<div class="px-row"><div><div>'+n+'</div>'+(d?'<div class="px-small px-mute">'+d+'</div>':'')+'</div>'
+ +(o?'<div class="px-seg" role="group" aria-label="'+n+'">'+o.map(([v,l])=>'<button type="button" class="px-btn'+(s[k]===v?' on':'')+'" aria-pressed="'+(s[k]===v)+'" data-k="'+k+'" data-v="'+v+'">'+l+'</button>').join('')+'</div>'
+  :'<div class="px-seg"><input class="px-range" type="range" min="0" max="100" step="5" value="'+Math.round(s.volume*100)+'" id="vol" aria-label="Master volume"><span class="px-small" id="volv" style="min-width:42px;text-align:right">'+Math.round(s.volume*100)+'%</span></div>')+'</div>').join('')}
+$('#dset-b').addEventListener('click',e=>{const b=e.target.closest('[data-k]');if(!b)return;const k=b.dataset.k,raw=b.dataset.v,v=raw==='true'?true:raw==='false'?false:raw;A.settings.set(k,v);setView();SND.blip();try{$('#dset-b [data-k="'+k+'"][data-v="'+raw+'"]').focus()}catch(x){}});
+$('#dset-b').addEventListener('input',e=>{if(e.target.id!=='vol')return;const v=+e.target.value/100;A.settings.set('volume',v);$('#volv').textContent=Math.round(v*100)+'%'});
+$('#bset').onclick=()=>{setView();dOpen('#dset')};
+function nameView(){const p=A.profile.get();$('#pname').textContent=p.name;const L=p.last,G=L&&GAMES.find(g=>g.id===L.game);$('#plast').textContent=G?'Last played: '+G.title+', '+ago(L.at):''}
+function ago(t){const d=Math.floor((new Date().setHours(0,0,0,0)-new Date(t).setHours(0,0,0,0))/864e5);return d<=0?'today':d===1?'yesterday':d+' days ago'}
+$('#pedit').onclick=()=>{$('#nin').value=A.profile.get().name;dOpen('#dname','#nin');setTimeout(()=>{try{$('#nin').select()}catch(e){}},10)};
+const nameSave=()=>{A.profile.set({name:$('#nin').value});dClose();toast('Welcome to '+CFG.name+', '+A.profile.get().name+'.')};
+$('#nsave').onclick=nameSave;$('#nin').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();nameSave()}});
+let soonG=null;function soonOpen(G){soonG=G;$('#dsoon-b').textContent=G.title+' is on its way. '+(G.blurb||'');dOpen('#dsoon')}
+$('#speek').onclick=()=>{if(soonG){location.href=soonG.path}};
+A.onChange(()=>{applyLook();nameView();SND.humSet();if(!openD||openD.id!=='dset')return;});
+// the player's little coin badge beside their name
+(()=>{const s=Px.sprite(['..yyy..','.yYYYy.','yYyYyYy','yYYyYYy','yYyYyYy','.yYYYy.','..yyy..'],{y:'#b07818',Y:'#f0c04a'},'#2a1806','#000000');Px.show($('#whoi'),s,Math.max(1,Math.round(3*(devicePixelRatio||1)*28/30/3)))})();
+
+/* ---------- keys and controllers ---------- */
+addEventListener('keydown',e=>{if(e.metaKey||e.ctrlKey||e.altKey)return;if(openD){if(e.key==='Escape'){e.preventDefault();dClose()}return}
+ if(e.target&&e.target.tagName==='INPUT')return;const k=e.key;
+ if(k==='ArrowLeft'||k==='ArrowRight'){e.preventDefault();choose(sel+(k==='ArrowLeft'?-1:1),true);CABS[sel].b.focus({preventScroll:true})}
+ else if(k==='Enter'&&!(e.target&&e.target.closest&&e.target.closest('button'))){e.preventDefault();play(sel)}});
+// the Gamepad API: d-pad or left stick to choose, A or Start to play, B to close a dialog (each press counted once)
+const pad={l:0,r:0,a:0,b:0,t:0};
+function padPoll(){const P=navigator.getGamepads?[...navigator.getGamepads()].filter(Boolean):[];if(!P.length)return;const p=P[0],B=i=>!!(p.buttons[i]&&p.buttons[i].pressed),ax=p.axes[0]||0;
+ const l=B(14)||ax<-.55,r=B(15)||ax>.55,a=B(0)||B(9),b=B(1),n=performance.now();
+ if((l&&!pad.l)||(l&&n-pad.t>420)){if(!openD){choose(sel-1,true);CABS[sel].b.focus({preventScroll:true})}pad.t=n}
+ if((r&&!pad.r)||(r&&n-pad.t>420)){if(!openD){choose(sel+1,true);CABS[sel].b.focus({preventScroll:true})}pad.t=n}
+ if(a&&!pad.a){if(openD){const f=document.activeElement;if(f&&openD.contains(f))f.click()}else play(sel)}if(b&&!pad.b)dClose();Object.assign(pad,{l,r,a,b})}
+(function pl(){padPoll();requestAnimationFrame(pl)})();
+
+/* ---------- start: the name, the arcade's name, the last game played chosen ---------- */
+document.title=CFG.name;$('#aname').textContent=CFG.name;$('#marquee').setAttribute('aria-label',CFG.name);nameView();
+{const L=A.profile.get().last,i=L?GAMES.findIndex(g=>g.id===L.game):-1;sel=i>=0?i:0}showInfo();
+relayout();raf=requestAnimationFrame(loop);
+let rz=0;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(relayout,80)});
+// the marquee's blackletter face may arrive after the first frame: draw DialBound's logo again once it has
+try{document.fonts.load('12px "Jacquard 12"').then(()=>{LOGO=null;for(const k in BASE)delete BASE[k];draw(true)})}catch(e){}
+try{document.fonts.ready.then(()=>relayout())}catch(e){}
+})();
+</script>
+</body></html>

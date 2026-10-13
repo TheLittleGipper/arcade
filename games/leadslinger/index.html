@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Legend of the LeadSlinger</title>
+<link rel="stylesheet" href="../../shared/arcade.css">
+<script src="../../shared/games.js"></script>
+<script src="../../shared/profile.js"></script>
+<script src="../../shared/pixel.js"></script>
+<style>
+/* ===== LEGEND OF THE LEADSLINGER: a "Coming soon" page for now. A desert at sundown drawn on one pixel canvas behind the
+   page, the title in hand-built Western slab letters, and the way back to the Arcade. ===== */
+html,body{height:100%}
+body{position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;background:#241034}
+#sky{position:absolute;left:0;top:0;z-index:0}
+.top{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:clamp(18px,7vh,80px);padding:0 16px;text-align:center}
+#title{display:block}
+.note{width:min(460px,100%);text-align:center}
+.note p{margin:0 0 12px}
+</style>
+</head><body>
+<canvas id="sky" class="px" aria-hidden="true"></canvas>
+<div class="top">
+ <h1 class="sr-only">Legend of the LeadSlinger: coming soon</h1>
+ <canvas id="title" class="px" aria-hidden="true"></canvas>
+ <div class="note px-panel"><p>The saloon doors are still being hung. This cabinet opens soon.</p><a class="px-btn go" id="back" href="../../index.html">Back to Arcade <span class="px-k">Esc</span></a></div>
+</div>
+<script>
+/* The game's own save, reserved: it will live under this key and never share the Arcade's or another game's.
+   Nothing is written until there is something to keep. */
+const KEY='leadslinger_v1';
+function load(){try{return JSON.parse(localStorage.getItem(KEY))||null}catch(e){return null}}
+function save(state){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
+(()=>{'use strict';
+const A=window.Arcade,R=document.documentElement,d=()=>devicePixelRatio||1,T0=performance.now();
+// the shared settings: theme for the panel, reduced motion for the tumbleweed (opened on its own, the system's choice)
+const RM=()=>{try{return A&&A.profile.exists()?A.settings.motionReduced():matchMedia('(prefers-reduced-motion: reduce)').matches}catch(e){return false}};
+function look(){try{R.dataset.theme=A&&A.profile.exists()?A.settings.theme():'dark'}catch(e){}R.classList.toggle('rm',RM())}
+look();try{A.onChange(look)}catch(e){}
+const rect=(g,x,y,w,h,c)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};let K=3,base=null,fr=null,fg=null,W=0,Hh=0,hz=0;
+const SAG=Px.sprite(['....gg.....','...gGgg....','...gGgg....','...gGgg..g.','g..gGgg.gGg','gG.gGgg.gGg','gG.gGgg.gGg','gGggGgg.gGg','.gGGGgggGg.','..ggGgggg..','....gGgg...','....gGgg...','....gGgg...','....gGgg...','....gGgg...','....gGgg...','...ggGggg..'],{g:'#2a4a2a',G:'#4a7a3a'},'#10200c');
+const WEED=[0,1,2,3].map(f=>{const[c,g]=Px.canvas(15,15);for(let a=0;a<9;a++){const an=a*.7+f*.4;for(let r=0;r<7;r+=.5){const x=7+Math.round(Math.cos(an+r*.9)*r),y=7+Math.round(Math.sin(an+r*.9)*r*.92);g.fillStyle=(a+Math.round(r))%3?'#b8864a':'#ecc888';g.fillRect(x,y,1,1)}}return Px.outline(c,'#3a1a08')});
+function bake(){K=Math.max(1,Math.round(Math.min(innerHeight*d()/230,innerWidth*d()/200)));W=Math.ceil(innerWidth*d()/K);Hh=Math.ceil(innerHeight*d()/K);hz=Math.round(Hh*.62);
+ const[c,g]=Px.canvas(W,Hh),SK=['#241034','#3a1640','#5a1e44','#822a44','#ae3c3e','#d8583a','#f07a36'];
+ for(let y=0;y<hz;y++)for(let x=0;x<W;x++)rect(g,x,y,1,1,SK[Math.max(0,Math.min(6,Math.floor(y/hz*7+Px.dith(x,y)*.9)))]);
+ for(let i=0;i<40;i++){const y=Math.floor(Math.pow(Px.hash(i,2),2)*hz*.35);rect(g,Math.floor(Px.hash(i,1)*W),y,1,1,'#e8c8ff')}
+ // a low sun, banded at its foot, sinking behind the mesas
+ const sx=Math.round(W*.64),sy=hz-6,sr=Math.max(14,Math.round(Hh*.09));for(let y=-sr;y<=sr;y++){if(y>sr*.15&&y%3!==0)continue;for(let x=-sr;x<=sr;x++){if(Math.hypot(x,y)>sr)continue;rect(g,sx+x,sy+y,1,1,y<-sr*.6?'#fffbe0':y<-sr*.2?'#fff0a8':y<sr*.2?'#ffd870':'#ffb850')}}
+ const mesa=(x0,w,h,c,cap)=>{for(let x=0;x<w;x++){const e=Math.min(x,w-1-x),hh=e<3?Math.max(1,h-3+e):h;rect(g,x0+x,hz-hh,1,hh,c);if(cap&&e>=3)rect(g,x0+x,hz-hh,1,1,cap)}};
+ for(let i=0;i<7;i++){const w=20+Math.floor(Px.hash(i,9)*50),x=Math.floor(Px.hash(i,8)*W)-10,h=6+Math.floor(Px.hash(i,7)*10);mesa(x,w,h,'#6a2a3c','#8a3a44')}
+ for(let i=0;i<4;i++){const w=30+Math.floor(Px.hash(i,19)*40),x=Math.floor(Px.hash(i,18)*W)-10,h=4+Math.floor(Px.hash(i,17)*6);mesa(x,w,h,'#4a1a2a','#6a2434')}
+ // a far-off town: false fronts and a water tower
+ {const tx=Math.round(W*.18);[[0,5,6],[6,4,8],[11,6,5],[18,4,7]].forEach(([x,w,h])=>rect(g,tx+x,hz-h,w,h,'#3a1424'));rect(g,tx+25,hz-11,5,5,'#3a1424');rect(g,tx+26,hz-6,1,6,'#3a1424');rect(g,tx+28,hz-6,1,6,'#3a1424')}
+ for(let y=hz;y<Hh;y++){const t=(y-hz)/(Hh-hz);for(let x=0;x<W;x++)rect(g,x,y,1,1,['#e08a44','#c8783a','#ae6230','#8a4a22','#6a3418'][Math.max(0,Math.min(4,Math.floor(t*4.6+Px.dith(x,y)*.9)))])}
+ for(let i=0;i<Math.floor(W/6);i++){const x=Math.floor(Px.hash(i,31)*W),y=hz+3+Math.floor(Px.hash(i,32)*(Hh-hz-4));rect(g,x,y,2,1,'#5a2a14');if(Px.hash(i,33)>.6)rect(g,x,y-1,1,1,'#f0b070')}
+ // saguaros, the near ones taller
+ [[.08,1.6],[.86,1.3],[.3,.8],[.72,.7]].forEach(([fx,s])=>{const k=Math.max(1,Math.round(s*Hh/200)),w=SAG.width*k,h=SAG.height*k,x=Math.round(W*fx-w/2),y=hz+Math.round((Hh-hz)*(s>1?.55:.12))-h;g.drawImage(SAG,x,y,w,h)});
+ // the sign: a weathered plank on a post, COMING SOON burned in
+ {const t=Px.text('COMING SOON',{face:'slab',ramp:['#2a1206'],bold:true}),pw=t.width+14,ph=t.height+10,px=Math.round(W*.5-pw/2),py=hz+Math.round((Hh-hz)*.32);
+  rect(g,px+pw-12,py-6,3,Hh,'#4a2a12');rect(g,px+pw-12,py-6,1,Hh,'#6a4020');rect(g,px+8,py-6,3,Hh,'#4a2a12');rect(g,px+8,py-6,1,Hh,'#6a4020');
+  rect(g,px-1,py-1,pw+2,ph+2,'#1e0c04');for(let y=0;y<ph;y++)for(let x=0;x<pw;x++)rect(g,px+x,py+y,1,1,y%4===0?'#8a5a2a':Px.hash(x>>2,y)>.85?'#9a6a36':'#b07a40');
+  [[2,2],[pw-3,2],[2,ph-3],[pw-3,ph-3]].forEach(([x,y])=>rect(g,px+x,py+y,1,1,'#3a2a1a'));g.drawImage(t,px+7,py+5)}
+ base=c;[fr,fg]=Px.canvas(W,Hh)}
+function draw(){if(!base)return;const t=RM()?0:(performance.now()-T0)/1000;fg.clearRect(0,0,W,Hh);fg.drawImage(base,0,0);
+ // a tumbleweed rolling along the foreground, hopping over the ruts
+ const y0=Hh-Math.round((Hh-hz)*.18),X=((t*14)%(W+40))-20,hop=Math.abs(Math.sin(t*2.4))*5,f=Math.floor(t*6)%4;rect(fg,Math.round(X)+3,y0+14,10,1,'#5a2a14');fg.drawImage(WEED[f],Math.round(X),Math.round(y0-hop));
+ // two vultures wheeling high
+ if(!RM())for(let i=0;i<2;i++){const a=t*.4+i*3,x=Math.round(W*.7+Math.cos(a)*30),y=Math.round(hz*.25+Math.sin(a)*8),w=Math.sin(t*3+i)>0;rect(fg,x-2,y+(w?-1:0),2,1,'#2a1020');rect(fg,x,y,1,1,'#2a1020');rect(fg,x+1,y+(w?-1:0),2,1,'#2a1020')}
+ Px.show($sky,fr,K)}
+const $sky=document.getElementById('sky');
+function title(){const a=Px.text('LEGEND OF THE',{face:'slab',ramp:['#fff4d8','#e8d0a0','#c8a070'],ink:'#2a0c04',shadow:'#000000'}),b=Px.text('LEADSLINGER',{face:'slab',scale:2,ramp:['#fffbe0','#ffe08a','#ffc860','#f0a040','#d8782a','#b0581e'],ink:'#2a0c04',shadow:'#000000'});
+ const[c,g]=Px.canvas(Math.max(a.width,b.width),a.height+b.height+3);g.drawImage(a,Math.round((c.width-a.width)/2),0);g.drawImage(b,Math.round((c.width-b.width)/2),a.height+3);
+ const k=Math.max(1,Math.min(Math.floor((innerWidth-32)*d()/c.width),Math.round(4*d())));Px.show(document.getElementById('title'),c,k)}
+function all(){bake();title();draw()}
+all();addEventListener('resize',()=>{clearTimeout(all.t);all.t=setTimeout(all,80)});
+let last=0;(function loop(ms){requestAnimationFrame(loop);if(RM()||ms-last<40)return;last=ms;draw()})(0);
+// Esc, or a controller's B, goes back to the Arcade
+addEventListener('keydown',e=>{if(e.key==='Escape')location.href='../../index.html'});
+(function pad(){try{const p=[...(navigator.getGamepads?navigator.getGamepads():[])].find(Boolean);if(p&&p.buttons[1]&&p.buttons[1].pressed)return location.href='../../index.html'}catch(e){}requestAnimationFrame(pad)})();
+})();
+</script>
+</body></html>
